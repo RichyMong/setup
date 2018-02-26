@@ -1,0 +1,410 @@
+#!/usr/bin/env bash
+
+function test_and_chdir
+{
+    [ -d $1 ] && cd $1
+}
+
+function mcd
+{
+    if [ $# -ne 1 ]; then
+        echo "usage: mcd <dir>"
+    fi
+    if [ "$1" == "-h" -o "$1" == "--help" ]; then
+        echo "mcd: create a directory and enter it"
+        echo "usage: mcd <dir>"
+        return
+    fi
+    mkdir -p $1 && cd $1
+}
+
+function mktags
+{
+    if [ "$1" == "-h" -o "$1" == "--help" ]; then
+        echo "mktag: make ctags and cscope with only c/c++ source files"
+        return
+    fi
+
+    if [ -n "$(which ctags)" ]; then
+        src_files=srcfiles_$(date +%Y%m%d)
+        if [ $# -eq 0 ]; then
+            find $PWD -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp"\
+                             -o -name "*.cc" > $src_files
+        else
+            for dir in $*; do
+                find $PWD/$dir -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp"\
+                                 -o -name "*.cc" >> $src_files
+            done
+        fi
+        ctags --fields=+S -L $src_files
+        if [ -n "$(which cscope)" ]; then
+            cscope -bquU -i $src_files
+        else
+            echo "Warning: cscope not installed"
+        fi
+    else
+        echo "Warning: ctags not installed"
+    fi
+}
+
+function fsed
+{
+    if [ $# -lt 1 -o "$1" == "-h" ]; then
+        echo "fsed - convert text 'from' to 'to' in files specified"
+        echo "usage: fsed [file-extension] from [to]"
+        return
+    fi
+    pattern=""
+    if [ $# -ge 3 ]; then
+        pattern=$1
+        shift
+    fi
+    from=$1
+    if [ $# -eq 2 ]; then
+        to=$2
+    fi
+    if [ "$patterh" == "" ]; then
+        find . -name "*" -type f -exec sed -i 's/'"$from"'/'"$to"'/g' {} \;
+    else
+        find . -name "*.$pattern" -type f -exec sed -i 's/'"$from"'/'"$to"'/g' {} \;
+    fi
+}
+
+function cgrep
+{
+    if [ $# -lt 1 ]; then
+        echo 'Usage: cgrep <pattern1> [pattern2...]'
+        return
+    fi
+    pattern=$1
+    shift
+    while [ $# -gt 0 ]; do
+        pattern=$pattern\|$1
+        shift
+    done
+
+    grep_app=grep
+    if $(which ag) >& /dev/null; then
+        grep_app=$(which arg)
+    elif $(which ack) >& /dev/null; then
+        grep_app=$(which ack)
+    elif $(which egrep) >& /dev/null; then
+        grep_app=$(which egrep)
+    fi
+
+    find $PWD \( -iname "*.cpp" -o -iname "*.c" -o -iname "*.cc" -iname "*.h" -o \
+                 -iname "*.hpp" \) -exec ${grep_app} -inH "($pattern)" {} \;
+}
+
+function svnco_or_update
+{
+    url=$1
+    dir=${url##*/}
+    if [ -d ${dir} ]; then
+        cd ${dir}
+        info=$(svn info 2> /dev/null | grep "Relative URL")
+        rurl=${ru/Relative URL: //}
+        if [ -n "$rurl" ]; then
+            svn update
+        else
+            echo "Directory ${dir} already exists. Checkout $url into it?[y/n]"
+            read answer
+            answer=$(echo $answer | tr [:upper:] [:lower:])
+            if [[ "$answer" == y* ]]; then
+                svn checkout $url
+            fi
+        fi
+        cd ..
+        return
+    else
+        svn checkout $url > /dev/null
+    fi
+}
+
+function gbk2utf8
+{
+    if [ $# -lt 2 ]; then
+        echo "usage: gbk2utf8 <gbk-file> <dest>"
+        return
+    fi
+
+    iconv -f gbk -t utf-8 -o $2 $1
+}
+
+function utf82gbk
+{
+    if [ $# -lt 2 ]; then
+        echo "usage: utf82gbk <utf8-file> <dest>"
+        return
+    fi
+
+    iconv -f utf-8 -t gbk -o $2 $1
+}
+
+function ssh_without_passwd
+{
+    if [ $# -lt 3 ]; then
+        echo 'usage: $0 <user> <host> <port> [label] [key-file-without-suffix]'
+        echo '       user - the user name'
+        echo '       host - the host ip'
+        echo '       label - HOST used in ~/.ssh/config'
+        return
+    fi
+
+    args=$(getopt -o hl:p:u:i:k: -l help,label:,port:,user:,ip:,key: -- "$@")
+    eval set -- "$args"
+
+    user=
+    host=
+    port=22
+    label=
+    key=id_rsa.pub
+    while true; do
+        case "$1" in 
+            -u)
+                user=$2
+                shift 2
+                ;;
+            -p)
+                port=$2
+                shift 2
+                ;;
+            -i)
+                host=$2
+                shift 2
+                ;;
+            -l)
+                label=$2
+                shift 2
+                ;;
+            -k)
+                key=$2
+                shift 2
+                ;;
+            -h)
+                echo "usage: ${FUNCNAME[0]} [-u user] [-p port]  [-l label] [-k key-file] <host>"
+                echo '       user - the user name'
+                echo '       host - the host ip'
+                echo '       label - HOST used in ~/.ssh/config'
+                return
+                ;; 
+            --)
+                shift
+                break;;
+        esac
+    done
+
+    if [ $# -ne 0 ]; then
+        ssh_without_passwd -h
+        return
+    fi
+
+    if [ -z "$label" ]; then
+        label=${host##*.}
+    fi
+
+    echo "user=$user, host=$host, port=$port, label=$label"
+
+    grep -i "Host \+$label" ~/.ssh/config &> /dev/null
+    if [ $? -eq 0 ]; then
+        echo "Label $label already exists in ~/.ssh/config."
+        return
+    fi
+
+    if [ ! -d ~/.ssh ]; then
+        mkdir -p ~/.ssh
+    fi
+
+    if [ "$key" = "id_rsa.pub" -a ! -f ~/.ssh/id_rsa.pub ]; then
+        ssh-keygen -t rsa
+    fi
+
+    ssh $user@$host -p $port 'mkdir -p ~/.ssh'
+    cat ~/.ssh/$key | ssh $user@$host -p $port 'cat >> ~/.ssh/authorized_keys'
+    ssh $user@$host -p $port 'cp ~/.ssh/authorized_keys ~/.ssh/authorized_keys2 && chmod 700 ~/.ssh && chmod 640 ~/.ssh/authorized_keys2'
+
+cat >> ~/.ssh/config <<-CONFIG
+
+HOST $label
+    HostName $host
+    User $user
+    Port $port
+    ServerAliveInterval 90
+CONFIG
+}
+
+function cd_svn_root
+{
+    last_svn_dir=""
+    while true; do
+        svn info >& /dev/null
+        if [ $? -eq 0 ]; then
+	    last_svn_dir=$PWD
+        else
+            if [ -n "$last_svn_dir" ]; then
+                break
+            elif [ "$PWD" == "$HOME" ]; then
+                echo "not in a SVN repository directory, use $TRUNK_DIR"
+                cd $TRUNK_DIR
+                break
+            fi
+        fi
+        cd ..
+    done
+}
+
+function calc
+{
+    if [ $# -lt 1 ]; then
+        echo "Error: missing expressions"
+        return
+    fi
+    python -c "exec('print($@)')"
+}
+
+############################## svn related ##############################
+function svn_cpp_st
+{
+    if [ $# -lt 1 ]; then
+        dir=$PWD
+    else
+        dir=$1
+    fi
+
+    if [ ! -d $dir ]; then
+        return
+    fi
+
+    old_ifs=$IFS
+    IFS=$'\n'
+    local_files=$(svn st $dir | grep "^\(M\|A\)")
+    if [ -n "$local_files" ]; then
+        dir_name=$(basename $(readlink -f $dir))
+        for src_file in ${local_files}; do
+            status=$(echo -n $src_file | awk '{print $1}')
+            path=$(echo -n $src_file | awk '{print $2}')
+            filename=$(basename $path)
+            ext=${filename##*.}
+            support_exts="h hpp c cpp cc"
+            if [ "${support_exts/$ext}" != "$support_exts" ]; then
+                echo ${status} ${path##$PWD/}
+            fi
+        done
+    fi
+    IFS=$old_ifs
+}
+
+function svn_patch
+{
+    if [ $# -lt 1 ]; then
+        echo "Missing source directories"
+        return
+    fi
+
+    tmp=$(mktemp -d)
+    dest=$tmp/patch_$(date +%y%m%d)
+    mkdir -p $dest
+    old_ifs=$IFS
+    IFS=$'\n'
+    for dir in $@; do
+        if [ ! -d $dir ]; then
+            continue
+        fi
+
+        local_files=$(svn_cpp_st $PWD/$dir)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+        
+        patch_dir=$dest/$(basename $(readlink -f $dir))
+        mkdir -p $patch_dir
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            echo "patching ${dir%/}/$path"
+            svn diff --diff-cmd=/usr/bin/diff -x -U10 $path > $patch_dir/$(basename $(readlink -f $path)).patch
+        done
+    done
+    tar czf patch_$(date +%y%m%d).tgz -C $tmp .
+    IFS=$old_ifs
+}
+
+function svn_backup
+{
+    if [ $# -lt 1 ]; then
+        echo "Missing source directories"
+        return
+    fi
+
+    tmp=$HOME/backup/$(date +%y%m%d)
+    mkdir -p $tmp
+    old_ifs=$IFS
+    IFS=$'\n'
+    for dir in $@; do
+        if [ ! -d $dir ]; then
+            continue
+        fi
+
+        local_files=$(svn_cpp_st)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+
+        dir_name=$(basename $(readlink -f $dir))
+        dest_dir=$tmp/${dir_name}
+        mkdir -p $dest_dir
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            echo "backuping ${dir%/}/$path"
+            cp $path $dest_dir
+        done
+    done
+    IFS=$old_ifs
+}
+
+function copy_wt
+{
+    cmd=${FUNCNAME[0]}
+    dir_error="You must run this command in $WORK_DIR itself or its subdirs."
+    if [ "$1" = "-h" -o "$1" = "--help" ]; then
+        echo "Usage: $cmd [ -h | --help ] [DIRS]"
+        echo ""
+        echo "Copy files in a directory of work branch to the according in trunk branch."
+        echo "$dir_error"
+        echo "-h, --help   print help message and return"
+        return
+    fi
+
+    wd=${WORK_DIR:?}
+    td=${TRUNK_DIR:?}
+    if [ ${PWD##$wd} = $PWD ]; then
+        echo "Error: $dir_error"
+        return
+    fi
+
+    echo "source directory: $wd"
+    echo "dest directory: $td"
+    if [ $# -lt 1 ]; then
+        dirs=$PWD
+    else
+        dirs=$@
+    fi
+
+    old_ifs=$IFS
+    IFS=$'\n'
+    for dir in $dirs; do
+        local_files=$(svn_cpp_st $PWD/$dir)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            dir_name=${PWD##$wd/}
+            dest_path=${td%/}/${dir_name}/$path
+            echo "$path -> $dest_path"
+            cp $path $dest_path
+        done
+    done
+    IFS=$old_ifs
+}
+

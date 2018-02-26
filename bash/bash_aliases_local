@@ -1,0 +1,654 @@
+DEV_DIR=$HOME/local_host/dev166
+DEV_CODE_DIR=$DEV_DIR/code
+CODE_DIR=$DEV_CODE_DIR
+WORK_DIR=$DEV_CODE_DIR/multimarket/trunk
+TRUNK_DIR=$DEV_CODE_DIR/multimarket/trunk
+MM_DIR=$WORK_DIR/src
+MC_DIR=$MM_DIR/multicachedata/src
+NETWORK_DIR=~/work/network/
+TESTS_DIR=~/work/network/emoney/tests/
+
+COLOR_GREEN='\033[0;34m'
+COLOR_RED='\033[0;31m'
+COLOR_NONE='\033[0m'
+
+alias cmaked="cmake -DCMAKE_BUILD_TYPE=Debug"
+alias cmaker="cmake -DCMAKE_BUILD_TYPE=Release"
+alias code="cd $CODE_DIR"
+alias trunk="cd $TRUNK_DIR"
+alias mds="cd $MM_DIR/multidatasvr"
+alias mdst="cd $TESTS_DIR/mds"
+alias mcm="cd $NETWORK_DIR/mcms/"
+alias buildmcm="cd $NETWORK_DIR/mcms/ && python build.py $TRUNK_DIR/multimarket"
+alias gqt="cd $TESTS_DIR/globalquote"
+alias globalquote="cd $MM_DIR/globalquote"
+alias tools="cd $HOME/work/tools/"
+alias nbmt="python ~/git/mine/std/python/tools/util/nbmktag.py"
+alias robot="cd $SERVER_CODE/tools/network/"
+alias s73="ssh 73"
+alias s84="ssh 84"
+alias sfsdev="sshfs -C dev:/home/mengfanke/ ~/dev"
+alias tests="cd $TESTS_DIR"
+alias wcode="cd $SERVER_CODE"
+alias mktslr="make CONF=ReleaseTransmodel"
+alias mktsld="make CONF=DebugTransmodel"
+alias scx="screen -x"
+alias smds="pgrep multidatasvr"
+alias kmds="pkill multidatasvr"
+alias mdsb="cd $MDS_HOME/bin/"
+alias mdsc="cd $MDS_HOME/config"
+alias pmds="cd /home/meng/production/upgrade/mds/"
+alias pgqs="cd /home/meng/production/upgrade/gqs/"
+alias npl="netstat -ltpn | grep 1861"
+alias npc="netstat -atpn | grep 1861"
+alias ponce="python3 test_once.py"
+alias ppush="python3 test_push.py"
+alias upload="cd ~/work/upload/"
+alias sftpp="python /home/meng/git/mine/std/python/tools/util/sftp_proxy_put.py"
+alias sftpg="python /home/meng/git/mine/std/python/tools/util/sftp_proxy_get.py"
+
+function _sshj_others {
+    location=$1
+    user=$(redis-cli hmget vps:login:$location user passwd)
+    passwd=$(redis-cli hget vps:login:$location passwd)
+    ~/.expect/jumper_others.exp $location $1 $user $passwd
+}
+
+function sshjsz { _sshj_others sz }
+
+function sshjhz { _sshj_others hz }
+
+function sshjmsbj { _sshj_others msbj }
+
+function sshjmssh { _sshj_others mssh }
+
+function elog {
+    today_logfile=$MULTIDATASVR_HOME/log/$(date +_%y%m%d).log
+    vim $today_logfile
+}
+
+function tlog {
+    today_logfile=$MULTIDATASVR_HOME/log/$(date +_%y%m%d).log
+    if [ $# -ge 1 ]; then
+       tail $today_logfile -n $1
+    else
+       tail -f $today_logfile
+    fi
+}
+
+function zlog {
+    today_logfile=$MULTIDATASVR_HOME/log/$(date +_%y%m%d).log
+    truncate --size 0 $today_logfile
+}
+
+# debug multidata server
+function dmds {
+    pid=$(pgrep multidatasvr)
+    if [ $? -eq 0 ]; then
+        gdb attach $pid
+    fi
+}
+
+function rmds {
+    NAME=multidatasvr
+    cur_dir=$PWD
+    cd ${MULTIDATASVR_HOME}/bin
+    pid_and_name=$(pgrep -l ${NAME})
+    if [ $? -eq 0 ]; then
+        prog=$(echo $pid_and_name | awk '{ print $2 }')
+        ./${prog} -stop
+    fi
+    for name in $(ls -c ${NAME}*); do
+        file $name | grep "LSB" > /dev/null
+        if [ $? -eq 0 ]; then
+            ./${name} -start
+            break
+        fi
+    done
+    cd $cur_dir
+}
+
+function _get_cache_md5
+{
+    # apptype dir
+    key=upload:md5:$1:$2
+    value=$()
+
+}
+
+function _cpapp
+{
+    app_type=$1
+    shift 1
+    case $app_type in
+        gqs) 
+            app=globalquote 
+            project=$app
+            ;;
+        mds) 
+            app=multidatasvr 
+            project=$app
+            ;;
+        mts) 
+            app=multitranssvr
+            project=multitrans
+            ;;
+        *)
+            echo "not supported application type"
+            return
+    esac
+
+    build_type=Debug
+    code_dir=$WORK_DIR
+    need_build=0
+
+    args=`getopt -o brtd: -l build,release,trunk,directory: -- "$@"`
+    eval set -- "$args"
+
+    code_type=work
+    while true; do
+        case "$1" in 
+            -b)
+                need_build=1
+                shift 1
+                ;;
+            -r)
+                build_type=Release
+                shift 1
+                ;;
+            -t)
+                code_dir=$TRUNK_DIR
+                code_type=trunk
+                shift 1
+                ;;
+            -d)
+                code_dir=$2
+                code_type=${codedir//\//-}
+                shift 2
+                ;;
+            --)
+                shift
+                break;;
+        esac
+    done
+
+    if [ $app_type = "mts" ]; then
+        build_type=${build_type}Transsvr
+    fi
+
+    local_code_dir=$(realpath $code_dir)
+    echo $code_dir
+    upper_app_type=$(echo $app_type | tr '[:lower:]' '[:upper:]')
+    echo -e "app=${COLOR_RED}${upper_app_type}${COLOR_NONE}, main-path=$local_code_dir, type=$build_type, build=$need_build"
+
+    MMT_SRC=src
+
+    if [ $need_build -eq 1 ]; then
+        dev_home=/home/mengfanke/
+        abs_code_dir=$(realpath $local_code_dir)
+        remote_code_dir=${dev_home}/${abs_code_dir##/home/meng/local_host/dev166/}
+        echo "building $app, code directory: $remote_code_dir/$MMT_SRC/$project"
+        ssh 166 "cd $remote_code_dir/$MMT_SRC/$project && make"
+        if [ $? -ne 0 ]; then
+            echo "failed to build"
+            return
+        fi
+    fi
+
+    app_path=${local_code_dir}/$MMT_SRC/$project/dist/${build_type}/GNU-Linux-x86/$app
+
+    md5_key=upload:$app_type:md5
+    value=$(redis-cli hget $md5_key $code_type)
+    md5=$(md5sum $app_path | awk '{print $1}')
+
+    path_key=upload:$app_type:path
+    path=$(redis-cli hget $path_key $code_type)
+    md5_changed=0
+    if [ "$value" != "$md5" ]; then
+        echo "MD5 changed, $value -> $md5"
+        md5_changed=1
+        if [ -f "$path" ]; then
+            echo "Removing old file $path"
+            rm -f $path
+        fi
+    elif [ ! -f "$path" ]; then
+        echo "Warning: path=$path doesn't exist"
+        md5_changed=1
+    fi
+
+    echo "file=${app_path}, md5=${md5}"
+    dest_file=$HOME/work/upload/${app_type}/${app_type}_${code_type}_$(date '+%m%d').tgz
+    if [ $md5_changed -eq 1 ]; then
+        if [ -f $path ]; then
+            rm -f $path
+        fi
+        tar czf $dest_file -C $(dirname $app_path) $app
+        echo -e "${COLOR_RED}$(date +%H:%M:%S)${COLOR_NONE} $app_path -> $dest_file"
+        redis-cli hset $md5_key $code_type $md5 > /dev/null
+        redis-cli hset $path_key $code_type $dest_file > /dev/null
+    else
+        dest_file=$path
+    fi
+
+    shift $((OPTIND-1))
+    python3 /home/meng/git/mine/std/python/tools/util/sftp_proxy_put.py\
+            -s $app_type -l $dest_file -i $@
+}
+
+function cpgqs
+{
+    _cpapp gqs $@
+}
+
+function cpmds 
+{
+    _cpapp mds $@
+}
+
+function cpmts
+{
+    _cpapp mts $@
+}
+
+function get_svn_root {
+    last_svn_dir=""
+    current_dir=$PWD
+    while true; do
+        svn info $current_dir >& /dev/null
+        if [ $? -eq 0 ]; then
+	    last_svn_dir=$current_dir
+            current_dir=$(dirname $current_dir)
+        else
+            if [ -n "$last_svn_dir" ]; then
+                 echo $last_svn_dir
+                 return 0
+            elif [ "$PWD" == "$HOME" ]; then
+                echo "not in a SVN repository directory, use $WORK_DIR"
+                return 0
+            else
+                current_dir=$(dirname $current_dir)
+            fi
+        fi
+    done
+}
+
+function cd_svn_root {
+    svn_root=$(get_svn_root)
+    if [ $? -ne 0 ]; then
+        echo "Error: not in a svn repository"
+        return 1
+    fi
+    cd $svn_root
+    return 0
+}
+
+function cd_module_dir {
+    if [ $# -lt 1 ]; then
+        return
+    fi
+
+    MODNAME=$1
+    svn_root=$(get_svn_root)
+    mod_dir=${svn_root}/$MODNAME/
+    if [ $? -ne 0 ] || [ ! -d "$mod_dir" ]; then
+        echo "Module dir does not exist. Change dir into $WORK_DIR"
+        cd ${WORK_DIR}/$MODNAME
+        return
+    fi
+
+    cd $mod_dir
+}
+
+function wbuild {
+    abs_dir=$(get_svn_root)/trunk/src/
+    if [ $? -ne 0 ] || [ ! -d "$abs_dir" ]; then
+        echo "Error: not in a svn repository"
+        return 1
+    fi
+    build_dir=$abs_dir/_build
+    if [ ! -d "$build_dir" ]; then
+        mkdir $build_dir
+    fi
+    cd $build_dir
+}
+
+function wgq {
+    cd_module_dir trunk/src/globalquote
+}
+
+function wmm {
+    cd_module_dir "multimarket"
+}
+
+function wmc {
+    cd_module_dir trunk/src/multicachedata
+}
+
+function wcom {
+    cd_module_dir trunk/src/multicommon
+}
+
+function wapp {
+    cd_module_dir trunk/src/appcommon
+}
+
+function wmcm {
+    cd_module_dir trunk/src/mcm
+}
+
+function wmts {
+    cd_module_dir trunk/src/multitrans
+}
+
+function wmds {
+    cd_module_dir trunk/src/multidatasvr
+}
+
+function wqt {
+    cd_module_dir trunk/src/multiqtsvr
+}
+
+function cpmc
+{
+    cur_dir=${PWD}
+    cd_svn_root
+    svn_root=$PWD
+    echo ${svn_root}
+    cd ${svn_root}/multimarket/trunk/tools
+    bash xcache.sh
+
+    mc_dir=${svn_root}/multimarket/trunk/src/multicachedata/multicachedata
+    qtif_mm=${svn_root}/qtif/multimarket/
+    comm_dir=${svn_root}/multimarket/trunk/src/multicommon/src/
+    cp lib/libxcache.a ${qtif_mm}/lib/
+
+    cp ${mc_dir}/stdstructdef.h ${qtif_mm}/include/stdstructdef.h
+    cp ${mc_dir}/multicachedata.h ${qtif_mm}/include/multicachedata.h
+    cp ${comm_dir}/marketcode.h ${qtif_mm}/include/marketcode.h
+
+    cd ${cur_dir}
+}
+
+function rbcl2g {
+    old_dir=$PWD
+    cp -r ~/windows/code/tools/network/emoney/* ~/git/mine/std/python/tools/binary-message/ouou/
+    cp -r ~/windows/code/tools/network/tests/* ~/git/mine/std/python/tools/binary-message/tests/
+    cp ~/windows/code/tools/network/setup.py ~/git/mine/std/python/tools/binary-message/setup.py
+    cd ~/git/mine/std/python/tools/binary-message
+    find . -name "*.py" -exec sed -i 's/emoney/ouou/g' {} \;
+    cd $old_dir
+}
+
+function rbcg2l {
+    cp -r ~/git/mine/std/python/tools/binary-message/ouou/* ~/windows/code/tools/network/emoney/
+    cp -r ~/git/mine/std/python/tools/binary-message/tests/* ~/windows/code/tools/network/tests/
+    cp ~/git/mine/std/python/tools/binary-message/setup.py ~/windows/code/tools/network/setup.py
+    cd ~/windows/code/tools/network/
+    find . -name "*.py" -exec sed -i 's/ouou/emoney/g' {} \;
+    cd -
+}
+
+function svn_cpp_st {
+    if [ $# -lt 1 ]; then
+        dir=$PWD
+    else
+        dir=$1
+    fi
+
+    if [ ! -d $dir ]; then
+        return
+    fi
+
+    old_ifs=$IFS
+    IFS=$'\n'
+    local_files=$(svn st $dir | grep "^\(M\|A\)")
+    if [ -n "$local_files" ]; then
+        dir_name=$(basename $(readlink -f $dir))
+        for src_file in ${local_files}; do
+            status=$(echo -n $src_file | awk '{print $1}')
+            path=$(echo -n $src_file | awk '{print $2}')
+            filename=$(basename $path)
+            ext=${filename##*.}
+            support_exts="h hpp c cpp cc"
+            if [ "${support_exts/$ext}" != "$support_exts" ]; then
+                echo ${status} ${path##$PWD/}
+            fi
+        done
+    fi
+    IFS=$old_ifs
+}
+
+function svn_patch {
+        if [ $# -lt 1 ]; then
+            echo "Missing source directories. $PWD will be used"
+            svn_dirs=.
+        else
+            svn_dirs=$@
+        fi
+
+    tmp=$(mktemp -d)
+    time=$(date +%y%m%d)
+    dest=$tmp/patch_${time}
+    mkdir -p $dest
+    old_ifs=$IFS
+    IFS=$'\n'
+    patch_file=${time}.patch
+    for dir in $svn_dirs; do
+        if [ ! -d $dir ]; then
+            continue
+        fi
+
+        local_files=$(svn_cpp_st $dir)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+        
+        patch_dir=$dest/$(basename $(readlink -f $dir))
+        mkdir -p $patch_dir
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            echo "patching ${dir%/}/$path"
+            svn diff --diff-cmd=/usr/bin/diff -x -U10 $path >> $patch_file
+            # svn diff --diff-cmd=/usr/bin/diff -x -U10 $path > $patch_dir/$(basename $(readlink -f $path)).patch
+        done
+    done
+    tar czf patch_${2:-$(date +%y%m%d)}.tgz -C $tmp .
+    IFS=$old_ifs
+}
+
+function svn_backup {
+    if [ $# -lt 1 ]; then
+        dirs=$PWD
+    else
+        dirs=$@
+    fi
+
+    backup_dir=$HOME/backup/${2:-$(date +%y%m%d)}
+    mkdir -p $backup_dir
+    old_ifs=$IFS
+    IFS=$'\n'
+    for dir in $@; do
+        if [ ! -d $dir ]; then
+            continue
+        fi
+
+        local_files=$(svn_cpp_st $dir)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            dir_name=$(dirname $path)
+            dest_dir=$backup_dir/${dir_name}
+            mkdir -p $dest_dir
+            echo "backuping ${dir%/}/$path -> ${dest_dir}"
+            cp $path $dest_dir
+        done
+    done
+    IFS=$old_ifs
+}
+
+function copy_wt {
+    cmd=${FUNCNAME[0]}
+    dir_error="You must run this command in $WORK_DIR itself or its subdirs."
+    if [ "$1" = "-h" -o "$1" = "--help" ]; then
+        echo "Usage: $cmd [ -h | --help ] [DIRS]"
+        echo ""
+        echo "Copy files in a directory of work branch to the according in trunk branch."
+        echo "$dir_error"
+        echo "-h, --help   print help message and return"
+        return
+    fi
+
+    wd=${WORK_DIR:?}
+    td=${TRUNK_DIR:?}
+    if [ ${PWD##$wd} = $PWD ]; then
+        echo "Error: $dir_error"
+        return
+    fi
+
+    echo "source directory: $wd"
+    echo "dest directory: $td"
+    if [ $# -lt 1 ]; then
+        dirs=$PWD
+    else
+        dirs=$@
+    fi
+
+    old_ifs=$IFS
+    IFS=$'\n'
+    for dir in $dirs; do
+        local_files=$(svn_cpp_st $dir)
+        if [ -z "$local_files" ]; then
+            continue
+        fi
+
+        for src_file in ${local_files}; do
+            path=$(echo -n $src_file | awk '{print $2}')
+            dir_name=${PWD##$wd/}
+            dest_path=${td%/}/${dir_name}/$path
+            echo "$path -> $dest_path"
+            cp $path $dest_path
+        done
+    done
+    IFS=$old_ifs
+}
+
+function prepare_online
+{
+    if [ $# -lt 2 ]; then
+        echo "usage: ${FUNCNAME[0]} <service> <dev-type>"
+        return
+    fi
+
+    type=$1
+    case $type in
+        gqs) app=globalquote ;;
+        mds) app=multidatasvr ;;
+        *)
+            echo "not supported application type"
+            return
+    esac
+
+    dest_dir=~/production/upgrade/$type/$(date '+%Y%m%d')
+    mkdir -p $dest_dir && cd $dest_dir
+    cp ~/local_dev/code/$2/multimarket/trunk/src/$app/dist/Release/GNU-Linux-x86/$app .
+}
+
+function prod_ver
+{
+    if [ $# -lt 1 ]; then
+        echo "usage: ${FUNCNAME[0]} <service>"
+        return
+    fi
+
+    type=$1
+    case $type in
+        gqs) app=globalquote ;;
+        mds) app=multidatasvr ;;
+        *)
+            echo "not supported application type"
+            return
+    esac
+
+    old_dir=$PWD
+    service_dir=~/production/upgrade/$type
+    cd $service_dir
+    dest_dir=$(ls -c | head -n 1)
+    echo "Path: $service_dir/$dest_dir"
+    svn info -rHEAD | grep "Last Changed Rev: "
+    cd $old_dir
+}
+
+function sshj
+{
+    if [ $# -lt 1 ]; then
+        echo "usage: ${FUNCNAME[0]} <host>"
+        echo "       host can in the format st84 or zr86"
+        return
+    fi
+
+    proxy=
+    location=${1:0:2}
+    if [ "$location" = "st" ]; then
+        host=202.104.236.${1:2}
+    elif [ "$location" = "zr" ]; then
+        host=114.80.234.${1:2}
+    elif [ "$location" = "10" -o "$location" = "zp" ]; then
+        if [ "$location" = "zp" ]; then
+            ip=${1:2}
+        else
+            ip=$1
+        fi
+        dots=$(echo $ip | awk '{print gsub(/\./, ".")}')
+        if [ $dots -eq 0 ]; then
+            host=10.205.135.$ip
+        elif [ $dots -eq 1 ]; then
+            host=10.205.$ip
+        elif [ $dots -eq 2 ]; then
+            host=10.$ip
+        else
+            host=$ip
+        fi
+
+        proxy=zp
+    else
+        host=$1
+    fi
+
+    echo $host
+
+    if [ "$proxy" = "zp" ]; then
+        ~/.expect/jumper_zp.exp $host
+    else
+        ~/.expect/jumper.exp $host
+    fi
+}
+
+function update_beta_mds
+{
+    bin_dir=~/work/upload/mds/
+    file=$(ls -c $bin_dir/mds_*.tz2 2> /dev/null | head -n 1)
+    if [ $? -ne 0 ]; then
+        echo "Error: cannot find tar file in $bin_dir"
+        return
+    fi
+    sftpp -l $file -r home/baoleiji/mds_update/ -i beta120 beta121
+}
+
+function _revision_complete_()
+{
+    local cmd="${1##*/}"
+    local word=${COMP_WORDS[COMP_CWORD]}
+    local line=${COMP_LINE}
+    local revisions=$(ls ~/code/revision)
+
+    COMPREPLY=($(compgen -f -X "$revisions" -- "${word}"))
+}
+
+function revision {
+    cd ~/code/revision/$1
+}
+
+complete -F _revision_complete_ revision

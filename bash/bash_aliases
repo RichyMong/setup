@@ -1,0 +1,64 @@
+BASE=$HOME/$([ -d ~/personal ] && echo personal)
+MYGIT_DIR=$HOME/git/
+MINE_DIR=$MYGIT_DIR/mine
+STD_DIR=$MINE_DIR/std
+TOMCAT_DIR=$HOME/Downloads/apache-tomcat-9.0.0.M10
+alias astylec="astyle --style=stroustrup --add-brackets -j --max-code-length=80 --break-after-logical --delete-empty-lines --break-blocks"
+alias book="cd $BASE/book/"
+alias boost="cd $MYGIT_DIR/boost"
+alias cd2="cd ../../"
+alias cd3="cd ../../../"
+alias cd4="cd ../../../../"
+alias cmaked="cmake -DCMAKE_BUILD_TYPE=Debug"
+alias cmaker="cmake -DCMAKE_BUILD_TYPE=Release"
+alias ctags="/usr/bin/ctags --language-force=c++ --fields=+iaS -R --extra=+q --links=no --exclude=.svn --exclude=doc --exclude=docx --exclude=ppt"
+alias du0="du -d 0 -h"
+alias du1="du -d 1 -h"
+alias leetcode="cd $STD_DIR/hobbies/leetcode/algorithms"
+alias ls='ls --color=auto'
+alias ll='ls -al --time-style=long-iso'
+alias mine="cd $MINE_DIR"
+alias mkd='mkdir'
+alias mkp='mkdir -p'
+alias myc="cd $STD_DIR/cprog"
+alias mycpp="cd $STD_DIR/cpp"
+alias mypy="cd $STD_DIR/python"
+alias mygo="cd $STD_DIR/go"
+alias arcsp="cd $STD_DIR/python/tools/silentpatch"
+alias mydj="cd $STD_DIR/python/django"
+alias mygit="cd $MYGIT_DIR"
+alias mygo="cd $STD_DIR/go"
+alias myja="cd $STD_DIR/java/"
+alias mypy="cd $STD_DIR/python"
+alias mysc="cd $BASE/tools/scripts/"
+alias mysh="cd $STD_DIR/shell"
+alias py2="/usr/bin/python2"
+alias py3="/usr/bin/python3"
+alias py="/usr/bin/python"
+alias pacug="proxychains sudo pacman -Syu"
+alias sba="source ~/.bash_aliases"
+alias sbl="source ~/.bash_aliases_local"
+alias sbr="source ~/.bashrc"
+alias scp='scp -C'
+alias svnlv="svn log --verbose" # log verbose
+alias svnlr="svn info -rHEAD | grep Revision | cut -d' ' -f2" # latest revision
+alias svndp="svn diff -r BASE:PREV "
+alias svnrc="svn resolve --accept working"
+alias setup="cd $MINE_DIR/setup"
+alias std="cd $STD_DIR"
+alias ta="tmux -2 attach"
+alias tmux="tmux -2"
+alias tomcat='cd $TOMCAT_DIR'
+alias tcroot='cd $TOMCAT_DIR/webapps/ROOT'
+alias tcbin='cd $TOMCAT_DIR/bin'
+alias tcstart='bash $TOMCAT_DIR/bin/startup.sh'
+alias tcstop='bash $TOMCAT_DIR/bin/shutdown.sh'
+alias useful="cd $STD_DIR/python/useful/"
+alias vba="vim ~/.bash_aliases"
+alias vbl="vim ~/.bash_aliases_local"
+alias vbr="vim ~/.bashrc"
+alias web="cd $STD_DIR/web/"
+alias webdump="sudo tcpdump -i enp3s0 -A 'tcp port 80'"
+alias x="xdg-open "
+alias ycmc="cd ~/.vim/bundle/YouCompleteMe/"
+alias ycmb="ycmc && ./install.py --clang-completer --gocode-completer"

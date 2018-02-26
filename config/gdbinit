@@ -1,0 +1,33 @@
+python
+import sys
+import gdb
+import glob
+import os.path as op
+
+initfile = op.realpath(op.expanduser('~/.gdbinit'))
+gdb_pydir = op.join(op.dirname(initfile), 'gdb_python')
+if op.isdir(gdb_pydir):
+	sys.path.insert(0, gdb_pydir)
+	from mystd.v6.printers import register_libstdcxx_printers
+	register_libstdcxx_printers (None)
+
+	for file in glob.iglob(op.join(gdb_pydir, 'scripts', '*.py')):
+		gdb.execute('source {}'.format(file))
+end
+
+set prompt \033[31m(gdb)\033[0m
+set confirm off
+set follow-fork-mode child
+set history save on
+set history size 1024
+set history remove-duplicates 1
+set history filename ~/.gdb_history
+set print pretty on
+set print object on
+set print static-members on
+set print vtbl on
+set print demangle on
+set print sevenbit-strings off
+set print elements 0
+set pagination off
+set demangle-style gnu-v3

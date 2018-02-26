@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+function open_books
+{
+    book_dir=$HOME/Documents/
+    books=$(find $book_dir -type f \( -name "*.djvu" -o -name "*.pdf" \) \
+            -printf '%A@ %P\n' | sort -r | head -n 2 | awk '{print $2;}')
+    app=$(which evince)
+    if [ $? -ne 0 ]; then
+        app=xdg-open
+    fi
+    for book in $books; do
+        $app $(realpath $book_dir/$book) >& /dev/null &
+    done
+}
+
+open_books

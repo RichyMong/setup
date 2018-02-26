@@ -1,0 +1,56 @@
+if which systemctl &> /dev/null; then
+    __tmp=$(systemctl --help)
+    __old_ifs=$IFS
+    __in_opts=0
+    __all_possible=""
+    IFS=$'\n'
+    for __line in $__tmp; do
+        if [[ $__line == *" Commands:" ]]; then
+            __in_opts=0
+        fi
+
+        if [ -n "$__line" ] && [[ ! $__line =~ "[\t\n ]*" ]]; then
+            if [[ $__line == " "* ]]; then
+                # remove leading spaces, need to 'shopt -s extglob'
+                __line=${__line##*( )}
+                unset IFS
+                read -ra __args <<< "$__line"
+                IFS=$'\n'
+                if [ $__in_opts -eq 1 ]; then
+                    if [[ $__line == "-"* ]]; then
+                        if [ -z $__all_possible ]; then
+                            __all_possible=${__args[0]}
+                        else
+                            __all_possible="$__all_possible ${__args[0]}"
+                        fi
+                    fi
+                else
+                    __all_possible="$__all_possible ${__args[0]}"
+                fi
+            elif [ "$__line" == "Query or send control commands to the systemd manager." ]; then
+                __in_opts=1
+            fi
+        fi
+    done
+    IFS=$__old_ifs
+    __systemctl_commands=$__all_possible
+
+    complete -F _comp_systemctl systemctl
+fi
+
+function _comp_systemctl()
+{
+    local cur
+    # Pointer to current completion word.
+    # By convention, it's named "cur" but this isn't strictly necessary.
+
+    COMPREPLY=()   # Array variable storing the possible completions.
+    cur=${COMP_WORDS[COMP_CWORD]}
+
+    case "$cur" in
+      *)
+      COMPREPLY=( $( compgen -W '$__systemctl_commands' $cur ) );;
+    esac
+
+    return 0
+}

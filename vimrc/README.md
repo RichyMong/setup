@@ -1,0 +1,4 @@
+vimrc
+=====
+
+self use

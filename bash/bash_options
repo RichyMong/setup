@@ -1,0 +1,25 @@
+stty stop ''
+stty start ''
+
+# Use multiple commands instead of one
+shopt -sq autocd
+shopt -sq cdspell
+shopt -sq cmdhist
+shopt -sq dirspell
+shopt -sq expand_aliases
+shopt -sq extglob
+shopt -sq globstar
+shopt -sq nocaseglob
+shopt -sq no_empty_cmd_completion
+shopt -sq histreedit
+
+major=${BASH_VERSINFO[0]}
+minor=${BASH_VERSINFO[1]}
+patch=${BASH_VERSINFO[2]}
+
+if [ "${major}.${minor}.${patch}" \> "4.2.28" ]; then
+    shopt -sq direxpand
+fi
+
+# sad that I'm not familiar with emacs...
+export EDITOR=vim

@@ -1,0 +1,29 @@
+# C-s supress terminal output in bash, but we don't need it.
+# Note: spaces before or after colon is not allowed.
+Control-s: forward-search-history
+
+Control-space: kill-region
+
+"\C-@": set-mark
+"\M-[":character-search-backward
+
+"\C-x\C-w": backward-kill-word
+"\C-x\C-m": menu-complete
+"\t": menu-complete
+"\C-x\C-b": menu-complete-backward
+"\C-x\C-p": copy-backward-word
+"\C-x\C-f": copy-forward-word
+
+set completion-ignore-case on
+
+set menu-complete-display-prefix on
+
+# set this option to skip the text already completed
+set skip-completed-text on
+
+set visible-stats on
+
+set colored-stats on
+
+# yank-nth-arg(ctrl-alt-y): yanks the first argument by default.
+# Alt - [0-9] Ctrl - Alt -y
